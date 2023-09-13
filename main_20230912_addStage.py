@@ -15,7 +15,7 @@ num_time_steps = 24
 num_time_steps = range(0, num_time_steps)
 
 """ Import objects """
-from investment_cost_func_20230803 import investment_cost
+from investment_cost_func_20230803 import capital_cost_s1_pv
 from power_flow_calc import power_flow_calc
 
 # pv_data = pd.read_csv("pv_power_1hr_MW_JUL_1_2015_OLDB.csv")  # Month July = 16 hours SUN
@@ -45,10 +45,14 @@ class MyProblem(ElementwiseProblem):
         for k in range(30, 31):
             variables[f"x{k:01}"] = Real(bounds=(0, 5))     # [MW]
 
+        # Investment stages
+        for k in range(31, 33):
+            variables[f"x{k:01}"] = Integer(bounds=(1, 2))
+
         super().__init__(vars=variables, n_obj=1, n_ieq_constr=2, **kwargs)
 
     def _evaluate(self, x, out, *args, **kwargs):
-        x = np.array([x[f"x{k:01}"] for k in range(0, 31)])
+        x = np.array([x[f"x{k:01}"] for k in range(0, 33)])
 
         """Power Flow"""
         # for i in num_time_steps:
@@ -66,8 +70,14 @@ class MyProblem(ElementwiseProblem):
         """ Objective functions """
         cost_investment_ = []
 
+        # for idx_f2 in net.bus.index:
+        #     cost_invest = investment_cost(net, bus_bar=x[0:15][idx_f2], pv_size=x[15:30][idx_f2])
+        #     cost_investment = cost_invest.capital_cost()
+        #     cost_investment_.append(cost_investment)
+        # f1 = sum(cost_investment_)
+
         for idx_f2 in net.bus.index:
-            cost_invest = investment_cost(net, bus_bar=x[0:15][idx_f2], pv_size=x[15:30][idx_f2])
+            cost_invest = capital_cost_s1_pv(net, bus_bar=x[0:15][idx_f2], pv_size=x[15:30][idx_f2])
             cost_investment = cost_invest.capital_cost()
             cost_investment_.append(cost_investment)
         f1 = sum(cost_investment_)
