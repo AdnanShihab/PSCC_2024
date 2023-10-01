@@ -17,6 +17,7 @@ num_time_steps = range(0, num_time_steps)
 """ Import objects """
 from investment_cost_func_20230803 import investment_cost
 from power_flow_calc import power_flow_calc
+from obj_func import obj_function
 
 # pv_data = pd.read_csv("pv_power_1hr_MW_JUL_1_2015_OLDB.csv")  # Month July = 16 hours SUN
 pv_data = 1
@@ -33,26 +34,42 @@ class MyProblem(ElementwiseProblem):
     def __init__(self, **kwargs):
         variables = dict()
 
-        # bus-bars for the PV generators
+        # bus-bars for the PV generators - Y1
         for k in range(0, 15):
             variables[f"x{k:01}"] = Integer(bounds=(2, 14))
 
-        # size of PV generators
+        # size of PV generators  - Y1
         for k in range(15, 30):
             variables[f"x{k:01}"] = Real(bounds=(0, 1.0))  # [MW]
 
-        # CH4 supply
-        for k in range(30, 31):
-            variables[f"x{k:01}"] = Real(bounds=(0, 5))     # [MW]
+        # bus-bars for the PV generators - Y2
+        for k in range(30, 45):
+            variables[f"x{k:01}"] = Integer(bounds=(2, 14))
+
+        # size of PV generators  - Y2
+        for k in range(45, 60):
+            variables[f"x{k:01}"] = Real(bounds=(0, 1.0))  # [MW]
+
+        # bus-bars for the PV generators - Y2
+        for k in range(60, 75):
+            variables[f"x{k:01}"] = Integer(bounds=(2, 14))
+
+        # size of PV generators  - Y2
+        for k in range(75, 80):
+            variables[f"x{k:01}"] = Real(bounds=(0, 1.0))  # [MW]
+
+        # # CH4 supply
+        # for k in range(30, 31):
+        #     variables[f"x{k:01}"] = Real(bounds=(0, 5))     # [MW]
 
         # # Investment stages [w]
         # for k in range(31, 33):
         #     variables[f"x{k:01}"] = Integer(bounds=(1, 2))
 
-        super().__init__(vars=variables, n_obj=2, n_ieq_constr=2, **kwargs)
+        super().__init__(vars=variables, n_obj=3, n_ieq_constr=2, **kwargs)
 
     def _evaluate(self, x, out, *args, **kwargs):
-        x = np.array([x[f"x{k:01}"] for k in range(0, 31)])
+        x = np.array([x[f"x{k:01}"] for k in range(0, 80)])
 
         """Power Flow"""
         # for i in num_time_steps:
@@ -68,12 +85,13 @@ class MyProblem(ElementwiseProblem):
         # print("vm =", vm)
 
         """ Objective functions """
-        w = [1, 2, 3, 4, 5]
-        y = [1, 2, 3, 4, 5]
+        w = [1, 2, 3]
+        y = [1, 2, 3, 4, 5, 6, 7, 8, 9]
         cost_investment_s1_pv = []
-        cost_investment_pv_2023 = []    # --> a decision variable? 1000000000
+        cost_investment_pv_2023 = []
         cost_investment_pv_2024 = []
         cost_investment_pv_2025 = []
+        cost_investment_pv_2026 = []
 
         cost_investment_s2_pv = []
         cost_investment_s3_pv = []
@@ -98,26 +116,71 @@ class MyProblem(ElementwiseProblem):
         #
         # f1 = f1_s1_pv + 0
 
-        for idx in w:
+        for idx_w in w:     # w == stage
+            print("w =", idx_w)
+            # for idx_y in y:
             # for STAGE == 1
-            if idx == 1:
-                # Parameters for year = 1
-                for idx_f2 in net.bus.index:
-                    cost_invest = investment_cost(net, bus_bar=x[0:15][idx_f2], pv_size=x[15:30][idx_f2])
-                    cost_investment = cost_invest.capital_cost_pv_2023()
-                    # print(cost_investment)
-                    cost_investment_s1_pv.append(cost_investment)
-                f1_s1_y1_pv_ = sum(cost_investment_s1_pv)
-                print(f1_s1_y1_pv_)
-                f1_s1_y1_pv_sum = f1_s1_y1_pv_ / ((1+0.05)**(idx-1))
-                f1_s1_y1_pv = f1_s1_y1_pv_sum
+            if idx_w == 1:
+                # Parameters for year = 1, 2, 3
+                # for idx_f2 in net.bus.index:
+                #     cost_invest = investment_cost(net, bus_bar=x[0:15][idx_f2], pv_size=x[15:30][idx_f2])
+                #     cost_investment_2023 = cost_invest.capital_cost_pv_2023()
+                #     cost_investment_2024 = cost_invest.capital_cost_pv_2024()
+                #
+                #     cost_investment_pv_2023.append(cost_investment_2023)
+                #     cost_investment_pv_2024.append(cost_investment_2024)
+                # res_inv_pv_2023 = sum(cost_investment_pv_2023)
+                # res_inv_pv_2024 = sum(cost_investment_pv_2024)
+                #
+                # print(res_inv_pv_2023, res_inv_pv_2024)
+                #
+                # res_inv_pv_s1 = res_inv_pv_2023 + res_inv_pv_2024
+                inv_cost = obj_function(stage=idx_w, year=1, net=net, x=x)
+                f1 = inv_cost.year1()
+                f1 = f1 / ((1+0.05)**(idx_w-1))
+                print("OF1 =", f1)
 
-                for idx_f2 in net.bus.index:
-                    cost_invest = investment_cost(net, bus_bar=x[0:15][idx_f2], pv_size=x[15:30][idx_f2])
-                    cost_investment = cost_invest.capital_cost_pv_2024()
-                    cost_investment_s1_pv.append(cost_investment)
-                f1_s1_y2_pv_ = sum(cost_investment_s1_pv)
-                f1_s1_y2_pv = f1_s1_y2_pv_
+                f2 = inv_cost.year2()
+                f2 = f2 / ((1 + 0.05) ** (idx_w - 1))
+                print("OF2 =", f2)
+
+                f3 = inv_cost.year2()
+                f3 = f3 / ((1 + 0.05) ** (idx_w - 1))
+                print("OF3 =", f3)
+
+            # elif idx == 2:
+            #     # Parameters for year = 4, 5, 6
+            #     for idx_f2 in net.bus.index:
+            #         cost_invest = investment_cost(net, bus_bar=x[0:15][idx_f2], pv_size=x[15:30][idx_f2])
+            #         cost_investment_2026 = cost_invest.capital_cost_pv_2026()
+            #         # cost_investment_2024 = cost_invest.capital_cost_pv_2024()
+            #
+            #         cost_investment_pv_2026.append(cost_investment_2026)
+            #         # cost_investment_pv_2024.append(cost_investment_2024)
+            #     res_inv_pv_2026 = sum(cost_investment_pv_2026)
+            #     # res_inv_pv_2024 = sum(cost_investment_pv_2024)
+            #
+            #     print(res_inv_pv_2026, res_inv_pv_2027)
+            #
+            #     res_inv_pv_s2 = res_inv_pv_2026 + res_inv_pv_2027
+            #
+            #     OF = res_inv_pv_s1 / ((1+0.05)**(idx-1)) + 0
+            #     print("OF =", OF)
+            #
+            #     f1 = OF
+
+                #     cost_investment_s1_pv.append(cost_investment)
+                # f1_s1_y1_pv_ = sum(cost_investment_s1_pv)
+                # f1_s1_y1_pv_sum = f1_s1_y1_pv_ / ((1+0.05)**(idx-1))
+                # f1_s1_y1_pv = f1_s1_y1_pv_sum
+
+                # for idx_f2 in net.bus.index:
+                #     cost_invest = investment_cost(net, bus_bar=x[0:15][idx_f2], pv_size=x[15:30][idx_f2])
+                #     cost_investment = cost_invest.capital_cost_pv_2024()
+                #     cost_investment_s1_pv.append(cost_investment)
+                # f1_s1_y2_pv_ = sum(cost_investment_s1_pv)
+                # # f1_s1_y2_pv = f1_s1_y2_pv_
+                # f1_s1_y2_pv = 0
 
         """Constraints"""
 
@@ -135,11 +198,11 @@ class MyProblem(ElementwiseProblem):
         # print(vm)
         # print(net.sgen)
 
-        g3 = 5 - x[30]   # for gas supply
+        # g3 = 5 - x[30]   # for gas supply
 
         """Output"""
         out["G"] = [g1[0], g2[0]]
-        out["F"] = [f1_s1_y1_pv, f1_s1_y2_pv]
+        out["F"] = [f1, f2, f3]
 
         power_flow_.remove_PV()
 
@@ -172,7 +235,7 @@ from pymoo.core.mixed import MixedVariableMating, MixedVariableGA, MixedVariable
 from pymoo.optimize import minimize
 from pymoo.factory import get_termination
 
-algorithm = MixedVariableGA(pop_size=1,
+algorithm = MixedVariableGA(pop_size=5,
                             Sampling=MixedVariableSampling(),
                             mating=MixedVariableMating(eliminate_duplicates=MixedVariableDuplicateElimination()),
                             element_duplicates=MixedVariableDuplicateElimination(),
@@ -180,7 +243,7 @@ algorithm = MixedVariableGA(pop_size=1,
                             )
 
 
-termination = get_termination("n_gen", 2)
+termination = get_termination("n_gen", 5)
 
 res = minimize(prob,
                algorithm,
